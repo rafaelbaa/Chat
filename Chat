@@ -1,0 +1,127 @@
+package chat;
+
+import java.io.IOException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Scanner;
+
+import com.rabbitmq.client.*;
+
+public class Chat {
+	private static String QUEUE_NAME = "";
+
+	public static void main(String[] argv) throws Exception {
+		ConnectionFactory factory = new ConnectionFactory();
+		factory.setHost("reindeer.rmq.cloudamqp.com"); // parametros para
+														// conexão com
+														// rabbitmq
+														// (black-boar.rmq.cloudamqp.com)
+		factory.setUsername("zmftsqmp");
+		factory.setPassword("qsUQqIkgv2ZuSTzH6tYuxIhQ99Ao3KQv");
+		factory.setVirtualHost("zmftsqmp");
+		Connection connection = factory.newConnection();
+		Channel channel = connection.createChannel();
+
+		DateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
+		Date date = new Date();
+		String hora = dateFormat.format(date);
+		String msg = "";
+		String off = "desligar";
+		int liberar = 0;
+		int liberar2 = 0;
+		String contato = "";
+		String cmd = "";
+		Scanner scan = new Scanner(System.in);
+		System.out.println("Digite o seu usuário");
+		QUEUE_NAME = scan.nextLine();
+
+		// metodo receive
+
+		channel.queueDeclare(QUEUE_NAME, false, false, false, null);
+
+		Consumer consumer = new DefaultConsumer(channel) {
+			@Override
+			public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties,
+					byte[] body) throws IOException {
+				String message = new String(body, "UTF-8");
+				System.out.println(message);
+			}
+		};
+		channel.basicConsume(QUEUE_NAME, true, consumer);
+
+		// loop até colocar a palavra off
+		while (!((msg.equals(off)) || (msg.equals(off)))) {
+			Scanner s = new Scanner(System.in);
+			if (contato.equals("")) {
+				System.out.print(">");
+				msg = s.nextLine();
+			} else {
+				System.out.print(contato + ">");
+				msg = s.nextLine();
+			}
+
+			int verificar3 = msg.indexOf('!');
+			if (verificar3 == 0) {
+				int i = 1;
+				while (msg.charAt(i) != ' ') {
+					cmd += msg.charAt(i);
+					i++;
+				}
+
+				if (cmd.equals("creategroup")) {
+					int um = msg.indexOf(" ");
+					int dois = msg.lastIndexOf("");
+					channel.exchangeDeclare(msg.substring(um + 1, dois), "fanout", true);
+					cmd = "";
+				} else if (cmd.equals("add")) {
+					int um = msg.indexOf(" ");
+					int dois = msg.lastIndexOf(" ");
+					int tres = msg.lastIndexOf("");
+					channel.queueBind(msg.substring(um + 1, dois), msg.substring(dois + 1, tres), "");
+					cmd = "";
+				} else {
+					System.out.println("Comando inválido");
+				}
+			}
+			int verificar = msg.indexOf('@');
+			int verificar2 = msg.lastIndexOf('@');
+			if ((verificar == 0 && verificar2 == 1)) {
+				int um = msg.lastIndexOf("@");
+				int dois = msg.lastIndexOf("");
+				contato = msg.substring(um + 1, dois);
+				liberar2 = 1;
+				liberar = 0;
+				System.out.println("=======================================================================");
+				System.out.println("                   Conversando com " + contato + "                     ");
+				System.out.println("=======================================================================");
+			} else if ((liberar2 == 0) && (liberar == 0) && (verificar != 0) && (verificar3 != 0)) {
+				System.out.println("Não pode na primeira vez enviar mensagem antes de estabelecer o contato");
+			} else if ((verificar3 != 0) && (liberar == 0) && (liberar2 != 0)) {
+				msg = QUEUE_NAME + " " + hora + ": " + msg;
+				channel.basicPublish(contato, "", null, msg.getBytes("UTF-8"));
+			}
+			if ((verificar == 0 && verificar2 != 1)) {
+				int um = msg.lastIndexOf("@");
+				int dois = msg.lastIndexOf("");
+				contato = msg.substring(um + 1, dois);
+				liberar = 1;
+				liberar2 = 0;
+				channel.queueDeclare(contato, false, false, false, null);
+				System.out.println("=======================================================================");
+				System.out.println("                   Conversando com " + contato + "                     ");
+				System.out.println("=======================================================================");
+			} else if ((liberar2 == 0) && (liberar == 0) && (verificar != 0) && (verificar3 != 0)) {
+				System.out.println("Não pode na primeira vez enviar mensagem antes de estabelecer o contato");
+			} else if ((verificar3 != 0) && (liberar != 0) && (liberar2 == 0)) {
+				msg = QUEUE_NAME + " " + hora + ": " + msg;
+				channel.basicPublish("", contato, null, msg.getBytes("UTF-8"));
+
+			}
+
+		}
+		channel.close();
+		connection.close();
+
+	}
+}
